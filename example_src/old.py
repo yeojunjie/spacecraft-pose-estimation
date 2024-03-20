@@ -66,6 +66,7 @@ def predict_chain(chain_dir: Path):
     type=click.Path(exists=False),
 )
 def main(data_dir, output_path):
+    print(data_dir, output_path)
     data_dir = Path(data_dir).resolve()
     output_path = Path(output_path).resolve()
     assert (
