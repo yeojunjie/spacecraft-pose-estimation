@@ -417,7 +417,7 @@ def remove_background(
 def resize_foreground(
     image: PIL.Image.Image,
     ratio: float,
-) -> PIL.Image.Image:
+) -> (PIL.Image.Image, np.ndarray):
     image = np.array(image)
     assert image.shape[-1] == 4
     alpha = np.where(image[..., 3] > 0)
@@ -427,6 +427,7 @@ def resize_foreground(
         alpha[1].min(),
         alpha[1].max(),
     )
+    cropping_matrix = np.array([[x1, y1], [x2, y2]])
     # crop the foreground
     fg = image[y1:y2, x1:x2]
     # pad to square
@@ -452,7 +453,7 @@ def resize_foreground(
         constant_values=((0, 0), (0, 0), (0, 0)),
     )
     new_image = PIL.Image.fromarray(new_image)
-    return new_image
+    return new_image, cropping_matrix
 
 
 def save_video(
