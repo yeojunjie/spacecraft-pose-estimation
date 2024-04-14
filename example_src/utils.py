@@ -4,17 +4,6 @@ from scipy.spatial.transform import Rotation
 
 # Note: scipy uses quaternions in the form (x, y, z, w) while we use (w, x, y, z).
 # Outside of these function definitions, we will observe the (w, x, y, z) ordering.
-
-def convert_rotation_matrix_to_quarternion(matrix):
-    rotation = Rotation.from_matrix(matrix)
-    q_xyzw = rotation.as_quat()
-    q_wxyz = np.roll(q_xyzw, 1)
-    return q_wxyz
-
-def convert_quarternion_to_rotation_matrix(q):
-    q_xyzw = np.roll(q, -1)
-    rotation = Rotation.from_quat(q_xyzw)
-    return rotation.as_matrix()
  
 """
 Returns the overall effect of applying the transformations in this order:
@@ -72,13 +61,10 @@ Returns the transformation (T, R) which, when applied after
 Note that in any transformation, the rotation is applied first, followed by the translation.
 """
 def decompose_transformations(T_start, R_start, T_end, R_end):
-    R_start_xyzw = np.roll(R_start, -1)
-    R_end_xyzw = np.roll(R_end, -1)
+    # We first calculate the inverse of the starting transformation.
+    T_start_inverse, R_start_inverse = calculate_inverse_transformation(T_start, R_start)
 
-    R_start = R.from_quat(R_start_xyzw)
-    R_end = R.from_quat(R_end_xyzw)
+    # Then, we compose the inverse of the starting transformation with the ending transformation.
+    T, R = compose_transformations(T_start_inverse, R_start_inverse, T_end, R_end)
 
-    T = T_end - R_end.apply(T_start)
-    R = (Rotation.inv(R_start) * R_end).as_quat()
-    R = np.roll(R, 1)
     return T, R
