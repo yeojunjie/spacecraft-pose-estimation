@@ -4,6 +4,9 @@ from scipy.spatial.transform import Rotation
 
 # Note: scipy uses quaternions in the form (x, y, z, w) while we use (w, x, y, z).
 # Outside of these function definitions, we will observe the (w, x, y, z) ordering.
+
+# Note: In a transformation, the rotation is applied first, followed by the translation.
+# However, the arguments to the functions in this file are in the order (T, R). Sorry!
  
 """
 Returns the overall effect of applying the transformations in this order:
