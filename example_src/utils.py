@@ -56,15 +56,18 @@ def calculate_inverse_transformation(R, T):
     return R_inverse_wxyz, T_inverse
 
 """
-Returns the transformation (R, T) which, when applied after
-(R_start, T_start), has the same effect as applying the transformation (R_end, T_end).
-Note that in any transformation, the rotation is applied first, followed by the translation.
+Takes in two transformations A_to_B and A_to_C.
+Returns the transformation B_to_C, which, as its name implies, is such that
+applying A_to_B, then B_to_C to a spacecraft has the same overall effect as applying A_to_C as the spacecraft.
+
+Note again that in any transformation, the rotation is applied first, followed by the translation.
 """
-def decompose_transformations(R_start, T_start, R_end, T_end):
+def decompose_transformations(A_to_B_rotation, A_to_B_translation, A_to_C_rotation, A_to_C_translation):
     # We first calculate the inverse of the starting transformation.
-    R_start_inverse, T_start_inverse = calculate_inverse_transformation(R_start, T_start)
+    B_to_A_rotation, B_to_A_translation = calculate_inverse_transformation(A_to_B_rotation, A_to_B_translation)
 
     # Then, we compose the inverse of the starting transformation with the ending transformation.
-    R, T = compose_transformations(R_start_inverse, T_start_inverse, R_end, T_end)
+    B_to_C_rotation, B_to_C_translation = compose_transformations(B_to_A_rotation, B_to_A_translation,
+                                                                  A_to_C_rotation, A_to_C_translation)
 
-    return R, T
+    return B_to_C_rotation, B_to_C_translation

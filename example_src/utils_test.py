@@ -6,6 +6,7 @@ from scipy.spatial.transform import Rotation
 
 IDENTITY_TRANSLATION = np.zeros((3,))
 IDENTITY_ROTATION = np.array([1, 0, 0, 0])
+np.random.seed(1)
 
 def quaternions_are_equal(q1, q2):
     return np.allclose(q1, q2) or np.allclose(q1, -q2)
@@ -152,7 +153,6 @@ def test_compose_transformation_with_known_inverse():
 
 
 def test_transformation_composed_with_inverse_is_identity():
-    np.random.seed(0)
     T = np.random.rand(3)
     R = np.random.rand(4)
     R /= np.linalg.norm(R) # Ensure that the quaternion R is a unit quaternion.
@@ -160,3 +160,41 @@ def test_transformation_composed_with_inverse_is_identity():
     R_overall, T_overall = compose_transformations(R, T, R_inv, T_inv)
     assert np.allclose(T_overall, IDENTITY_TRANSLATION)
     assert quaternions_are_equal(R_overall, IDENTITY_ROTATION)
+
+def test_decompose_transformations_using_inverse_transformations():
+    # Generate a random transformation A_to_B.
+    A_to_B_rotation = np.random.rand(4)
+    A_to_B_rotation /= np.linalg.norm(A_to_B_rotation) # Ensure that the quaternion is a unit quaternion.
+    A_to_B_translation = np.random.rand(3)
+
+    # We are testing the decomposition function, so we can assume that the transformation inversion function is correct.
+    expected_B_to_A_rotation, expected_B_to_A_translation = calculate_inverse_transformation(A_to_B_rotation, A_to_B_translation)
+
+    # If we apply A_to_B, then B_to_A, it should be the same as applying the identity transformation.
+    actual_B_to_A_rotation, actual_B_to_A_translation = decompose_transformations(A_to_B_rotation, A_to_B_translation,
+                                                                                  IDENTITY_ROTATION, IDENTITY_TRANSLATION)
+    
+    assert quaternions_are_equal(actual_B_to_A_rotation, expected_B_to_A_rotation)
+    assert np.allclose(actual_B_to_A_translation, expected_B_to_A_translation)
+
+def test_decompose_transformations_using_random_transformations():
+
+    # Generate two random transformations, A_to_B and A_to_C.
+    A_to_B_rotation = np.random.rand(4)
+    A_to_B_rotation /= np.linalg.norm(A_to_B_rotation) # Ensure that the quaternion is a unit quaternion.
+    A_to_B_translation = np.random.rand(3)
+    A_to_C_rotation = np.random.rand(4)
+    A_to_C_rotation /= np.linalg.norm(A_to_C_rotation) # Ensure that the quaternion is a unit quaternion.
+    A_to_C_translation = np.random.rand(3)
+
+    # Calculate the B_to_C transformation.
+    B_to_C_rotation, B_to_C_translation = decompose_transformations(A_to_B_rotation, A_to_B_translation,
+                                                                    A_to_C_rotation, A_to_C_translation)
+    
+    # If we apply A_to_B, then B_to_C, it should be the same as applying A_to_C.
+    # We are testing the decomposition function, so we can assume that the transformation composition function is correct.
+    should_equal_A_to_C_rotation, should_equal_A_to_C_translation = compose_transformations(A_to_B_rotation, A_to_B_translation,
+                                                                                            B_to_C_rotation, B_to_C_translation)
+    
+    assert quaternions_are_equal(should_equal_A_to_C_rotation, A_to_C_rotation)
+    assert np.allclose(should_equal_A_to_C_translation, A_to_C_translation)
