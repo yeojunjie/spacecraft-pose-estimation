@@ -8,6 +8,15 @@ IDENTITY_TRANSLATION = np.zeros((3,))
 IDENTITY_ROTATION = np.array([1, 0, 0, 0])
 np.random.seed(1)
 
+def generate_random_rotation_quaternion():
+    # Note: Whether this is in wxyz or xyzw format does not matter.
+    R = np.random.rand(4) * 2 - 1 # rand returns values in [0, 1). So, we scale to [-1, 1).
+    R /= np.linalg.norm(R) # Ensure that the quaternion is a unit quaternion.
+    return R
+
+def generate_random_translation():
+    return np.random.rand(3) * 10 - 5 # rand returns values in [0, 1). So, we scale to [-5, 5).
+
 def quaternions_are_equal(q1, q2):
     return np.allclose(q1, q2) or np.allclose(q1, -q2)
 
@@ -22,7 +31,7 @@ def test_inverse_of_identity_is_identity():
     assert quaternions_are_equal(R, IDENTITY_ROTATION)
 
 def test_inverse_of_random_translation():
-    T = np.random.rand(3)
+    T = generate_random_translation()
     R = IDENTITY_ROTATION
     R_inv, T_inv = calculate_inverse_transformation(R, T)
     assert np.allclose(T_inv, -T)
@@ -30,8 +39,7 @@ def test_inverse_of_random_translation():
 
 def test_inverse_of_random_rotation():
     T = IDENTITY_TRANSLATION
-    R_wxyz = np.random.rand(4)
-    R_wxyz /= np.linalg.norm(R_wxyz) # Ensure that the quaternion R is a unit quaternion.
+    R_wxyz = generate_random_rotation_quaternion()
     actual_R_inv_wxyz, actual_T_inv = calculate_inverse_transformation(R_wxyz, T)
 
     # Calculate the expected results.
@@ -72,8 +80,6 @@ def test_inverse_of_known_transformation():
     assert np.allclose(T_inv_actual, T_inv_expected, atol=1e-5)
     assert quaternions_are_equal(R_inv_actual_wxyz, R_inv_expected_wxyz)
 
-test_inverse_of_known_transformation()
-
 def test_compose_known_transformations():
     # Consider a spaceship at the origin and whose orientation is the identity.
     # We rotate the spaceship by 90 degrees clockwise about the z axis.
@@ -101,21 +107,22 @@ def test_compose_known_transformations():
     assert np.allclose(T_overall_actual, T_overall_expected, atol=1e-5)
 
 def test_compose_random_translation_with_random_translation():
-    T1 = np.random.rand(3)
-    T2 = np.random.rand(3)
+    T1 = generate_random_translation()
+    T2 = generate_random_translation()
     R_overall, T_overall = compose_transformations(IDENTITY_ROTATION, T1, IDENTITY_ROTATION, T2)
     assert np.allclose(T_overall, T1 + T2)
     assert quaternions_are_equal(R_overall, IDENTITY_ROTATION)
 
 def test_compose_random_rotation_with_random_rotation():
-    R1_wxyz = np.random.rand(4)
-    R2_wxyz = np.random.rand(4)
-    R1_wxyz /= np.linalg.norm(R1_wxyz) # Ensure that the quaternion is a unit quaternion.
-    R2_wxyz /= np.linalg.norm(R2_wxyz) # Ensure that the quaternion is a unit quaternion.
+    R1_wxyz = generate_random_rotation_quaternion()
+    R2_wxyz = generate_random_rotation_quaternion()
+
+    # Use scipy to convert the quaternions to Rotation objects.
     R1_xyzw = np.roll(R1_wxyz, -1)
     R2_xyzw = np.roll(R2_wxyz, -1)
     R1 = Rotation.from_quat(R1_xyzw)
     R2 = Rotation.from_quat(R2_xyzw)
+    
     R_overall, T_overall = compose_transformations(R1_wxyz, IDENTITY_TRANSLATION, R2_wxyz, IDENTITY_TRANSLATION)
     R_overall_expected = R2 * R1
     R_overall_expected_xyzw = R_overall_expected.as_quat()
@@ -153,9 +160,8 @@ def test_compose_transformation_with_known_inverse():
 
 
 def test_transformation_composed_with_inverse_is_identity():
-    T = np.random.rand(3)
-    R = np.random.rand(4)
-    R /= np.linalg.norm(R) # Ensure that the quaternion R is a unit quaternion.
+    T = generate_random_translation()
+    R = generate_random_rotation_quaternion()
     R_inv, T_inv = calculate_inverse_transformation(R, T)
     R_overall, T_overall = compose_transformations(R, T, R_inv, T_inv)
     assert np.allclose(T_overall, IDENTITY_TRANSLATION)
@@ -163,9 +169,8 @@ def test_transformation_composed_with_inverse_is_identity():
 
 def test_decompose_transformations_using_inverse_transformations():
     # Generate a random transformation A_to_B.
-    A_to_B_rotation = np.random.rand(4)
-    A_to_B_rotation /= np.linalg.norm(A_to_B_rotation) # Ensure that the quaternion is a unit quaternion.
-    A_to_B_translation = np.random.rand(3)
+    A_to_B_rotation = generate_random_rotation_quaternion()
+    A_to_B_translation = generate_random_translation()
 
     # We are testing the decomposition function, so we can assume that the transformation inversion function is correct.
     expected_B_to_A_rotation, expected_B_to_A_translation = calculate_inverse_transformation(A_to_B_rotation, A_to_B_translation)
@@ -180,12 +185,10 @@ def test_decompose_transformations_using_inverse_transformations():
 def test_decompose_transformations_using_random_transformations():
 
     # Generate two random transformations, A_to_B and A_to_C.
-    A_to_B_rotation = np.random.rand(4)
-    A_to_B_rotation /= np.linalg.norm(A_to_B_rotation) # Ensure that the quaternion is a unit quaternion.
-    A_to_B_translation = np.random.rand(3)
-    A_to_C_rotation = np.random.rand(4)
-    A_to_C_rotation /= np.linalg.norm(A_to_C_rotation) # Ensure that the quaternion is a unit quaternion.
-    A_to_C_translation = np.random.rand(3)
+    A_to_B_rotation = generate_random_rotation_quaternion()
+    A_to_B_translation = generate_random_translation()
+    A_to_C_rotation = generate_random_rotation_quaternion()
+    A_to_C_translation = generate_random_translation()
 
     # Calculate the B_to_C transformation.
     B_to_C_rotation, B_to_C_translation = decompose_transformations(A_to_B_rotation, A_to_B_translation,
