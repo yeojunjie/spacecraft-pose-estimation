@@ -7,22 +7,25 @@ from scipy.spatial.transform import Rotation
 IDENTITY_TRANSLATION = np.zeros((3,))
 IDENTITY_ROTATION = np.array([1, 0, 0, 0])
 
+def quaternions_are_equal(q1, q2):
+    return np.allclose(q1, q2) or np.allclose(q1, -q2)
+
 def test_identity_composed_with_identity_is_identity():
     R, T = compose_transformations(IDENTITY_ROTATION, IDENTITY_TRANSLATION, IDENTITY_ROTATION, IDENTITY_TRANSLATION)
     assert np.allclose(T, IDENTITY_TRANSLATION)
-    assert np.allclose(R, IDENTITY_ROTATION)
+    assert quaternions_are_equal(R, IDENTITY_ROTATION)
 
 def test_inverse_of_identity_is_identity():
     R, T = calculate_inverse_transformation(IDENTITY_ROTATION, IDENTITY_TRANSLATION)
     assert np.allclose(T, IDENTITY_TRANSLATION)
-    assert np.allclose(R, IDENTITY_ROTATION)
+    assert quaternions_are_equal(R, IDENTITY_ROTATION)
 
 def test_inverse_of_random_translation():
     T = np.random.rand(3)
     R = IDENTITY_ROTATION
     R_inv, T_inv = calculate_inverse_transformation(R, T)
     assert np.allclose(T_inv, -T)
-    assert np.allclose(R_inv, IDENTITY_ROTATION)
+    assert quaternions_are_equal(R_inv, R)
 
 def test_inverse_of_random_rotation():
     T = IDENTITY_TRANSLATION
@@ -38,14 +41,14 @@ def test_inverse_of_random_rotation():
     expected_R_inv_wxyz = np.roll(expected_R_inv_xyzw, 1)
     
     assert np.allclose(actual_T_inv, expected_T_inv)
-    assert np.allclose(actual_R_inv_wxyz, expected_R_inv_wxyz)
+    assert quaternions_are_equal(actual_R_inv_wxyz, expected_R_inv_wxyz)
 
 def test_inverse_of_known_transformation():
     # Consider a spaceship (with the camera) at the origin, and whose orientation is the identity.
     # In this test case, we move the spaceship in the x-y plane (z = 0).
 
-    # We rotate the spaceship by 90 degrees about the z axis.
-    R_xyzw = Rotation.from_euler('z', 90, degrees=True).as_quat()
+    # We rotate the spaceship by 90 degrees clockwise about the z axis.
+    R_xyzw = Rotation.from_euler('z', -90, degrees=True).as_quat()
     R_wxyz = np.roll(R_xyzw, 1)
 
     # We then move the spaceship 5 units in its x direction.
@@ -54,9 +57,9 @@ def test_inverse_of_known_transformation():
 
     # If we wish to undo this transformation,...
     
-    # We first rotate the spaceship by -90 degrees about the z axis.
-    R_inv_expected_xyzw = Rotation.from_euler('z', -90, degrees=True).as_quat()
-    R_inv_expected_wxyz = np.roll(R_inv_expected_xyzw, -1)
+    # We first rotate the spaceship by 90 degrees anticlockwise about the z axis.
+    R_inv_expected_xyzw = Rotation.from_euler('z', 90, degrees=True).as_quat()
+    R_inv_expected_wxyz = np.roll(R_inv_expected_xyzw, 1)
 
     # Now, the spaceship is at (0, -5, 0).
     # Hence, we should move the spaceship 5 units in its y direction.
@@ -66,30 +69,34 @@ def test_inverse_of_known_transformation():
     R_inv_actual_wxyz, T_inv_actual = calculate_inverse_transformation(R_wxyz, T)
 
     assert np.allclose(T_inv_actual, T_inv_expected, atol=1e-5)
-    assert np.allclose(R_inv_actual_wxyz, R_inv_expected_wxyz, atol=1e-5)
+    assert quaternions_are_equal(R_inv_actual_wxyz, R_inv_expected_wxyz)
+
+test_inverse_of_known_transformation()
 
 def test_compose_known_transformations():
     # Consider a spaceship at the origin and whose orientation is the identity.
-    # We rotate the spaceship by 90 degrees about the z axis.
-    R_xyzw = Rotation.from_euler('z', 90, degrees=True).as_quat()
+    # We rotate the spaceship by 90 degrees clockwise about the z axis.
+    R_xyzw = Rotation.from_euler('z', -90, degrees=True).as_quat()
     R_wxyz = np.roll(R_xyzw, 1)
 
     # We then move the spaceship 5 units in its x direction.
     # This corresponds to the global negative y direction.
     T = np.array([5, 0, 0])
 
-    # We then, again, rotate the spaceship by 90 degrees about the z axis.
+    # We then, again, rotate the spaceship by 90 degrees clockwise about the z axis.
     # We then, again, move the spaceship 5 units in its x direction.
     # This corresponds to the global negative x direction.
 
     # The overall effect is that the spaceship is at (-5, -5, 0) and is oriented at 180 degrees about the z axis.
     R_overall_expected_xyzw = Rotation.from_euler('z', 180, degrees=True).as_quat()
-    R_overall_expected_wxyz = np.roll(R_overall_expected_xyzw, -1)
+    R_overall_expected_wxyz = np.roll(R_overall_expected_xyzw, 1)
     T_overall_expected = np.array([5, 5, 0]) # Because the spaceship is 'upside down' in the x-y plane.
 
     R_overall_actual_wxyz, T_overall_actual = compose_transformations(R_wxyz, T, R_wxyz, T)
 
-    assert np.allclose(R_overall_actual_wxyz, R_overall_expected_wxyz, atol=1e-5)
+    # TODO: The following assertion fails because it does not understand that
+    # q === -q. This is because the quaternion representation is not unique.
+    assert quaternions_are_equal(R_overall_actual_wxyz, R_overall_expected_wxyz)
     assert np.allclose(T_overall_actual, T_overall_expected, atol=1e-5)
 
 def test_compose_random_translation_with_random_translation():
@@ -97,7 +104,7 @@ def test_compose_random_translation_with_random_translation():
     T2 = np.random.rand(3)
     R_overall, T_overall = compose_transformations(IDENTITY_ROTATION, T1, IDENTITY_ROTATION, T2)
     assert np.allclose(T_overall, T1 + T2)
-    assert np.allclose(R_overall, IDENTITY_ROTATION)
+    assert quaternions_are_equal(R_overall, IDENTITY_ROTATION)
 
 def test_compose_random_rotation_with_random_rotation():
     R1_wxyz = np.random.rand(4)
@@ -113,14 +120,14 @@ def test_compose_random_rotation_with_random_rotation():
     R_overall_expected_xyzw = R_overall_expected.as_quat()
     R_overall_expected_wxyz = np.roll(R_overall_expected_xyzw, 1)
     assert np.allclose(T_overall, IDENTITY_TRANSLATION)
-    assert np.allclose(R_overall, R_overall_expected_wxyz)
+    assert quaternions_are_equal(R_overall, R_overall_expected_wxyz)
 
 def test_compose_transformation_with_known_inverse():
     # Consider a spaceship (with the camera) at the origin, and whose orientation is the identity.
     # In this test case, we move the spaceship in the x-y plane (z = 0).
 
-    # We rotate the spaceship by 90 degrees about the z axis.
-    R_xyzw = Rotation.from_euler('z', 90, degrees=True).as_quat()
+    # We rotate the spaceship by 90 degrees clockwise about the z axis.
+    R_xyzw = Rotation.from_euler('z', -90, degrees=True).as_quat()
     R_wxyz = np.roll(R_xyzw, 1)
 
     # We then move the spaceship 5 units in its x direction.
@@ -129,9 +136,9 @@ def test_compose_transformation_with_known_inverse():
 
     # If we wish to undo this transformation,...
     
-    # We first rotate the spaceship by -90 degrees about the z axis.
-    R_inv_xyzw = Rotation.from_euler('z', -90, degrees=True).as_quat()
-    R_inv_wxyz = np.roll(R_inv_xyzw, -1)
+    # We first rotate the spaceship by 90 degrees anticlockwise about the z axis.
+    R_inv_xyzw = Rotation.from_euler('z', 90, degrees=True).as_quat()
+    R_inv_wxyz = np.roll(R_inv_xyzw, 1)
 
     # Now, the spaceship is at (0, -5, 0).
     # Hence, we should move the spaceship 5 units in its y direction.
@@ -141,7 +148,7 @@ def test_compose_transformation_with_known_inverse():
     R_overall_wxyz, T_overall = compose_transformations(R_wxyz, T, R_inv_wxyz, T_inv)
 
     assert np.allclose(T_overall, IDENTITY_TRANSLATION)
-    assert np.allclose(R_overall_wxyz, IDENTITY_ROTATION)
+    assert quaternions_are_equal(R_overall_wxyz, IDENTITY_ROTATION)
 
 
 def test_transformation_composed_with_inverse_is_identity():
@@ -152,4 +159,4 @@ def test_transformation_composed_with_inverse_is_identity():
     R_inv, T_inv = calculate_inverse_transformation(R, T)
     R_overall, T_overall = compose_transformations(R, T, R_inv, T_inv)
     assert np.allclose(T_overall, IDENTITY_TRANSLATION)
-    assert np.allclose(R_overall, IDENTITY_ROTATION)
+    assert quaternions_are_equal(R_overall, IDENTITY_ROTATION)
