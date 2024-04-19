@@ -3,6 +3,7 @@ from pathlib import Path
 import click
 import cv2
 import numpy as np
+import os
 import pandas as pd
 from loguru import logger
 import tensorflow as tf
@@ -14,7 +15,8 @@ PREDICTION_COLS = ["x", "y", "z", "qw", "qx", "qy", "qz"]
 REFERENCE_VALUES = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
 ESTIMATED_DISTANCE_TO_SPACECRAFT = (20 + 600) / 2 # metres
 
-MODEL = tf.keras.models.load_model('my_model.keras')
+# For mysterious reasons, the files cannot be detected even though read/write permissions are given to everyone.
+MODEL = tf.saved_model.load("my_model.h5")
 
 def predict_chain(chain_dir: Path):
     logger.debug(f"making predictions for {chain_dir}")
@@ -51,8 +53,8 @@ def predict_chain(chain_dir: Path):
             predicted_values = REFERENCE_VALUES
         else:
             # Think of image h as the image before image i.
-            img_h = cv2.imread(path_per_idx[i-1])
-            img_i = cv2.imread(path_per_idx[i])
+            img_h = cv2.imread(str(path_per_idx[i-1]))
+            img_i = cv2.imread(str(path_per_idx[i]))
 
             # Get the raw incremental returning transformation using SIFT and RANSAC.
             raw_rotation, raw_translation = predict_transformation_between_two_images(img_i, img_h)
@@ -60,6 +62,15 @@ def predict_chain(chain_dir: Path):
             # Use the pre-trained neural network to refine the incremental returning transformation.
             # TODO: Read the estimated distance to the spacecraft to the file.
             neural_network_input = np.hstack([last_known_range, raw_translation, raw_rotation])
+
+            # Normalise the inputs in the same way as the neural network was trained.
+            neural_network_input[0] = (neural_network_input[0] - 20) / 580
+            neural_network_input[1:4] = (neural_network_input[1:4] + 1000) / 2000
+
+            # Feature engineering.
+            neural_network_input = np.hstack([neural_network_input, neural_network_input[3:]**2])
+
+            # Make a prediction.
             refined_rotation, refined_translation = MODEL.predict(neural_network_input)[0]
 
             # Update the net returning transformation.
