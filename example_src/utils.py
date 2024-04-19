@@ -13,16 +13,16 @@ def compose_transformations(R_1, T_1, R_2, T_2):
     R_1_xyzw = np.roll(R_1, -1)
     R_2_xyzw = np.roll(R_2, -1)
 
-    R_1 = Rotation.from_quat(R_1_xyzw)
-    R_2 = Rotation.from_quat(R_2_xyzw)
+    R_1_rotation = Rotation.from_quat(R_1_xyzw)
+    R_2_rotation = Rotation.from_quat(R_2_xyzw)
 
     # The overall rotation is simply the product of the two rotations.
-    R_overall = R_2 * R_1 # Note the order.
+    R_overall = R_2_rotation * R_1_rotation # Note the order.
     R_overall_xyzw = R_overall.as_quat()
     R_overall_wxyz = np.roll(R_overall_xyzw, 1)
 
     # We calculate the changes in position caused by T_1 and T_2, w.r.t. the global frame of reference.
-    T_1_global = R_1.apply(T_1) # T_1 is affected by R_1.
+    T_1_global = R_1_rotation.apply(T_1) # T_1 is affected by R_1.
     T_2_global = R_overall.apply(T_2) # T_2 is affected by both rotations.
     T_overall_global = T_1_global + T_2_global
 
@@ -39,12 +39,12 @@ def calculate_inverse_transformation(R, T):
     # Determine where the transformation brings a point at the origin to,
     # in terms of the original point of view.
     R_xyzw = np.roll(R, -1)
-    R = Rotation.from_quat(R_xyzw)
-    T_relative_to_initial_POV = R.apply(T)
+    R_rotation = Rotation.from_quat(R_xyzw)
+    T_relative_to_initial_POV = R_rotation.apply(T)
 
     # Now, suppose we wish to undo this transformation.
     # Firstly, we need to undo the rotation.
-    R_inverse = R.inv()
+    R_inverse = R_rotation.inv()
 
     # Afterwards, we have rotated ourselves back to the original point of reference.
     # The translation is simply the negation of the overall translation effect.

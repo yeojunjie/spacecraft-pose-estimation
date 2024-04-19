@@ -6,7 +6,7 @@ from scipy.spatial.transform import Rotation
 
 IDENTITY_TRANSLATION = np.zeros((3,))
 IDENTITY_ROTATION = np.array([1, 0, 0, 0])
-np.random.seed(10)
+np.random.seed(1)
 
 def generate_random_unit_quaternion():
     # Note: Whether this is in wxyz or xyzw format does not matter.
@@ -138,7 +138,8 @@ def test_compose_transformations_obeys_associativity():
     C_to_D_rotation_wxyz = generate_random_unit_quaternion()
     C_to_D_translation = generate_random_translation()
 
-    # Associatiiy of transformations: ((A_to_B) then (B_to_C)) then (C_to_D) === (A_to_B) then ((B_to_C) then (C_to_D)).
+    # Associativity of transformations: ((A_to_B) then (B_to_C)) then (C_to_D) === (A_to_B) then ((B_to_C) then (C_to_D)).
+    # * is the unpacking operator: f(*(a, b)) === f(a, b).
 
     LHS_rotation, LHS_translation = compose_transformations(*compose_transformations(A_to_B_rotation_wxyz, A_to_B_translation,
                                                                                      B_to_C_rotation_wxyz, B_to_C_translation),

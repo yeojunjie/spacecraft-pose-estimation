@@ -5,11 +5,16 @@ import cv2
 import numpy as np
 import pandas as pd
 from loguru import logger
+import tensorflow as tf
+from predict_transformation_between_two_images import *
+from utils import *
 
 INDEX_COLS = ["chain_id", "i"]
 PREDICTION_COLS = ["x", "y", "z", "qw", "qx", "qy", "qz"]
 REFERENCE_VALUES = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
+ESTIMATED_DISTANCE_TO_SPACECRAFT = (20 + 600) / 2 # metres
 
+MODEL = tf.keras.models.load_model('my_model.keras')
 
 def predict_chain(chain_dir: Path):
     logger.debug(f"making predictions for {chain_dir}")
@@ -35,14 +40,36 @@ def predict_chain(chain_dir: Path):
         index=pd.Index(idxs, name="i"), columns=PREDICTION_COLS, dtype=float
     )
 
+    net_returning_rotation = np.array([1, 0, 0, 0])
+    net_returning_translation = np.array([0, 0, 0])
+    ESTIMATED_DISTANCE_TO_SPACECRAFT = (20 + 600) / 2 # metres
+    last_known_range = ESTIMATED_DISTANCE_TO_SPACECRAFT
+
     # make a prediction for each image
     for i, image_path in path_per_idx.items():
         if i == 0:
             predicted_values = REFERENCE_VALUES
         else:
-            _other_image = cv2.imread(str(image_path))
-            # TODO: actually make predictions! we don't actually do anything useful here!
-            predicted_values = np.random.rand(len(PREDICTION_COLS))
+            # Think of image h as the image before image i.
+            img_h = cv2.imread(path_per_idx[i-1])
+            img_i = cv2.imread(path_per_idx[i])
+
+            # Get the raw incremental returning transformation using SIFT and RANSAC.
+            raw_rotation, raw_translation = predict_transformation_between_two_images(img_i, img_h)
+
+            # Use the pre-trained neural network to refine the incremental returning transformation.
+            # TODO: Read the estimated distance to the spacecraft to the file.
+            neural_network_input = np.hstack([last_known_range, raw_translation, raw_rotation])
+            refined_rotation, refined_translation = MODEL.predict(neural_network_input)[0]
+
+            # Update the net returning transformation.
+            net_returning_rotation, net_returning_translation = compose_transformations(refined_rotation,
+                                                                                        refined_translation,
+                                                                                        net_returning_rotation,
+                                                                                        net_returning_translation)[0]
+            
+            predicted_values = np.hstack([net_returning_translation, net_returning_rotation])
+        
         chain_df.loc[i] = predicted_values
 
     # double check we made predictions for each image
