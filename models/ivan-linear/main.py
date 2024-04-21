@@ -1,17 +1,47 @@
+# use torch to make a CNN
 from pathlib import Path
-
 import click
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import torchvision
+import torch
+import torchvision.transforms as transforms
+from loguru import logger
 import cv2
 import numpy as np
 import pandas as pd
+from skimage import io, transform
+
 from loguru import logger
+
 
 INDEX_COLS = ["chain_id", "i"]
 PREDICTION_COLS = ["x", "y", "z", "qw", "qx", "qy", "qz"]
 REFERENCE_VALUES = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
 
 
-def predict_chain(chain_dir: Path):
+class BasicCNN(nn.Module):
+    def __init__(self):
+        super(BasicCNN, self).__init__()
+        self.flatten = nn.Flatten()
+        self.model = nn.Sequential(
+            nn.Linear(3*1280*1024, 7),
+            nn.ReLU(),
+            
+        )
+
+    def forward(self, x):
+        # resize x to 3x1280x1024
+        x = x.reshape(3*1280*1024)
+        # convert x to tensor
+        x = torch.tensor(x, dtype=torch.float32)
+        # print(x.shape)
+        x = self.model(x)
+        return x
+
+def predict_chain(chain_dir: Path, model):
     logger.debug(f"making predictions for {chain_dir}")
     chain_id = chain_dir.name
     image_paths = list(sorted(chain_dir.glob("*.png")))
@@ -40,21 +70,12 @@ def predict_chain(chain_dir: Path):
         if i == 0:
             predicted_values = REFERENCE_VALUES
         else:
-            _other_image = cv2.imread(str(image_path))
-            # TODO: actually make predictions! we don't actually do anything useful here!
-            predicted_values = np.random.rand(len(PREDICTION_COLS))
+            image = io.imread(image_path)
+            predicted_values = model(image).detach().numpy()
         chain_df.loc[i] = predicted_values
 
-    # double check we made predictions for each image
-    assert (
-        chain_df.notnull().all(axis="rows").all()
-    ), f"Found NaN values for chain {chain_id}"
-    assert (
-        np.isfinite(chain_df.values).all().all()
-    ), f"Found NaN or infinite values for chain {chain_id}"
-
+    print(chain_df.shape)
     return chain_df
-
 
 @click.command()
 @click.argument(
@@ -66,7 +87,6 @@ def predict_chain(chain_dir: Path):
     type=click.Path(exists=False),
 )
 def main(data_dir, output_path):
-    print(data_dir, output_path)
     data_dir = Path(data_dir).resolve()
     output_path = Path(output_path).resolve()
     assert (
@@ -83,13 +103,17 @@ def main(data_dir, output_path):
     # copy over the submission format so we can overwrite placeholders with predictions
     submission_df = submission_format_df.copy()
 
+    # load model weights
+    model = BasicCNN()
+    model.load_state_dict(torch.load("basic_linear_model.pth"))
+
     image_dir = data_dir / "images"
     chain_ids = submission_format_df.index.get_level_values(0).unique()
     for chain_id in chain_ids:
         logger.info(f"Processing chain: {chain_id}")
         chain_dir = image_dir / chain_id
         assert chain_dir.exists(), f"Chain directory does not exist: {chain_dir}"
-        chain_df = predict_chain(chain_dir)
+        chain_df = predict_chain(chain_dir, model)
         submission_df.loc[chain_id] = chain_df.values
 
     submission_df.to_csv(output_path, index=True)

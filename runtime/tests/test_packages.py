@@ -11,6 +11,10 @@ packages = [
     "tensorflow",
     "torch",
     "cv2",
+    "random",
+    "skimage",
+    "os", 
+    "torchvision",
 ]
 
 

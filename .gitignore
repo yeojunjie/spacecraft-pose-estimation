@@ -1,7 +1,9 @@
 data/
 submission/
 submission_src/
-
+.DS_Store
+*.pth
+output/*/*.png
 
 ## https://github.com/github/gitignore/blob/main/Python.gitignore
 
