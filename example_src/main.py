@@ -15,8 +15,18 @@ PREDICTION_COLS = ["x", "y", "z", "qw", "qx", "qy", "qz"]
 REFERENCE_VALUES = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
 ESTIMATED_DISTANCE_TO_SPACECRAFT = (20 + 600) / 2 # metres
 
+MODEL = tf.keras.models.Sequential([
+    tf.keras.layers.Dense(128, activation='relu', input_shape=(15,)),
+    tf.keras.layers.Dropout(0.1),
+    tf.keras.layers.Dense(64, activation='relu'),
+    tf.keras.layers.Dropout(0.1),
+    tf.keras.layers.Dense(32, activation='relu'),
+    tf.keras.layers.Dropout(0.1),
+    tf.keras.layers.Dense(7)
+])
+
 # For mysterious reasons, the files cannot be detected even though read/write permissions are given to everyone.
-MODEL = tf.saved_model.load("my_model.h5")
+MODEL.load_weights("example_src/my_model.h5")
 
 def predict_chain(chain_dir: Path):
     logger.debug(f"making predictions for {chain_dir}")
@@ -72,6 +82,8 @@ def predict_chain(chain_dir: Path):
 
             # Make a prediction.
             refined_rotation, refined_translation = MODEL.predict(neural_network_input)[0]
+
+            # TODO: Undo the normalisation.
 
             # Update the net returning transformation.
             net_returning_rotation, net_returning_translation = compose_transformations(refined_rotation,
